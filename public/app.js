@@ -140,5 +140,6 @@ $("show-dom").onclick = showDom;
 $("capture").onclick = capture;
 $("auth-form").onsubmit = async (event) => { event.preventDefault(); state.token = $("token").value; await load(); };
 $("close-session").onclick = () => { state.session = null; $("messages").textContent = "작업을 선택하세요"; status("세션 선택을 닫았습니다"); };
-status("토큰을 입력하세요");
+status("연결 중…");
+load();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=4").catch(() => {});
