@@ -236,9 +236,14 @@ export class AsideBridge {
     return parseSessionList(stdout).slice(0, 50);
   }
 
+  /** Latest conversation turns, projected to role/text inside Aside so large channel transcripts never overflow REPL stdout. */
   async messages(hostId: string, sessionId: string): Promise<SessionMessage[]> {
     if (!/^[A-Za-z0-9._:-]{1,200}$/.test(sessionId)) throw new Error("Invalid session id");
-    return normalizeMessages(await this.run(hostId, `const m=await aside.sessions.messages(${quote(sessionId)},{limit:100,order:"asc"}); console.log(${quote(RESULT_MARKER)}+JSON.stringify(m));`));
+    const script = `const m=await aside.sessions.messages(${quote(sessionId)},{limit:200,order:"desc"});`
+      + `const t=(c)=>typeof c==="string"?c:Array.isArray(c)?c.filter(p=>p&&p.type==="text"&&typeof p.text==="string").map(p=>p.text).join("\\n"):"";`
+      + `const out=m.filter(x=>x&&(x.role==="user"||x.role==="assistant")).map(x=>({role:x.role,content:t(x.content),timestamp:x.timestamp??null})).filter(x=>x.content).slice(0,60).reverse().map(x=>x.content.length>8000?{...x,content:x.content.slice(0,8000)+"\\n…"}:x);`
+      + `console.log(${quote(RESULT_MARKER)}+JSON.stringify(out));`;
+    return normalizeMessages(await this.run(hostId, script));
   }
 
   async dom(hostId: string, targetId: string): Promise<DomProjection> {
