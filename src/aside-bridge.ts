@@ -123,25 +123,28 @@ export class AsideBridge {
     return { ok: true };
   }
 
-  /** Starts a long-running Aside task; resolves once the CLI is running without an immediate failure. Progress is read from the session. */
+  /**
+   * Starts a long-running Aside task; resolves once the CLI reports the session (or a short grace period passes
+   * without failure). Aside prints "created new session: <id>" on stderr. Both pipes keep draining so the task never blocks.
+   */
   private async startCommand(args: string[], waitForSessionId: boolean): Promise<{ accepted: true; sessionId: string | null }> {
-    const proc = Bun.spawn([this.bin, ...args], { stdout: "pipe", stderr: "ignore", stdin: "ignore" });
-    const reader = proc.stdout.getReader();
-    const decoder = new TextDecoder();
+    const proc = Bun.spawn([this.bin, ...args], { stdout: "pipe", stderr: "pipe", stdin: "ignore" });
     let seen = "";
-    let sessionId: string | null = null;
-    const deadline = Date.now() + (waitForSessionId ? 20_000 : 2_000);
-    while (Date.now() < deadline) {
-      const chunk = await Promise.race([reader.read(), Bun.sleep(deadline - Date.now()).then(() => null)]);
-      if (!chunk || chunk.done) break;
-      seen = (seen + decoder.decode(chunk.value, { stream: true })).slice(-4_000);
-      sessionId = parseCreatedSession(seen);
-      if (sessionId) break;
-    }
+    const found = Promise.withResolvers<string | null>();
+    const pump = async (stream: ReadableStream<Uint8Array>) => {
+      const decoder = new TextDecoder();
+      try {
+        for await (const chunk of stream) {
+          seen = (seen + decoder.decode(chunk, { stream: true })).slice(-4_000);
+          const sessionId = parseCreatedSession(seen);
+          if (sessionId) found.resolve(sessionId);
+        }
+      } catch {}
+    };
+    void Promise.all([pump(proc.stdout), pump(proc.stderr)]).then(() => found.resolve(null));
+    const sessionId = await Promise.race([found.promise, Bun.sleep(waitForSessionId ? 20_000 : 2_000).then(() => null)]);
     const early = await Promise.race([proc.exited, Bun.sleep(0).then(() => null)]);
-    if (early !== null && early !== 0) throw new Error("Aside command failed");
-    // Keep draining so the CLI never blocks on a full pipe while the task runs.
-    void (async () => { try { while (!(await reader.read()).done) {} } catch {} })();
+    if (!sessionId && early !== null && early !== 0) throw new Error("Aside command failed");
     return { accepted: true, sessionId };
   }
 

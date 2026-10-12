@@ -87,6 +87,7 @@ async function run(): Promise<void> {
     ws.addEventListener("close", (event) => {
       clearInterval(helloTimer);
       if (event.code === 4001) { console.error("This connector was revoked on the hub. Pair again to reconnect."); process.exit(1); }
+      if (event.code === 4000) { console.error("Another connector using the same pairing took over. Stopping this one."); process.exit(0); }
       console.log(`disconnected (${event.code}); retrying in ${backoff / 1000}s`);
       setTimeout(connect, backoff);
       backoff = Math.min(backoff * 2, 60_000);

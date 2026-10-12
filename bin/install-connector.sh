@@ -27,7 +27,7 @@ cat > "$PLIST" <<EOF
   <key>WorkingDirectory</key><string>$ROOT_DIR</string>
   <key>EnvironmentVariables</key><dict><key>ASIDE_BIN</key><string>$ASIDE</string></dict>
   <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
   <key>StandardOutPath</key><string>$STATE_DIR/connector.log</string>
   <key>StandardErrorPath</key><string>$STATE_DIR/connector.error.log</string>
 </dict></plist>
