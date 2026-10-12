@@ -13,7 +13,7 @@ export interface AsideBridgeLike {
   stop(hostId: string, sessionId: string): Promise<unknown>;
 }
 
-type AppOptions = { bridge?: AsideBridgeLike; token?: string; publicDir?: string };
+type AppOptions = { bridge?: AsideBridgeLike; token?: string; publicDir?: string; trustTailscaleIdentity?: boolean };
 
 function json(value: unknown, status = 200): Response {
   return Response.json(value, { status, headers: { "cache-control": "no-store" } });
@@ -28,7 +28,8 @@ function promptFrom(value: unknown): string {
   return value.prompt;
 }
 
-function authorized(request: Request, token: string): boolean {
+function authorized(request: Request, token: string, trustTailscaleIdentity: boolean): boolean {
+  if (trustTailscaleIdentity && request.headers.get("Tailscale-User-Login")) return true;
   return !token || request.headers.get("authorization") === `Bearer ${token}`;
 }
 
@@ -43,13 +44,14 @@ async function staticFile(publicDir: string, pathname: string): Promise<Response
 export function createApp(options: AppOptions = {}): (request: Request) => Promise<Response> {
   const bridge = options.bridge ?? new AsideBridge();
   const token = options.token ?? process.env.ASIDE_MOBILE_TOKEN ?? "";
+  const trustTailscaleIdentity = options.trustTailscaleIdentity ?? process.env.TRUST_TAILSCALE_IDENTITY === "1";
   const publicDir = options.publicDir ?? `${process.cwd()}/public`;
 
   return async function app(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/api/health") return json({ ok: true, service: "aside-mobile" });
     if (!url.pathname.startsWith("/api/")) return staticFile(publicDir, url.pathname);
-    if (!authorized(request, token)) return json({ error: "unauthorized" }, 401);
+    if (!authorized(request, token, trustTailscaleIdentity)) return json({ error: "unauthorized" }, 401);
 
     try {
       const segments = url.pathname.split("/").filter(Boolean);
@@ -88,8 +90,9 @@ if (import.meta.main) {
   const port = Number(process.env.PORT ?? 8787);
   const hostname = process.env.HOST ?? "127.0.0.1";
   const token = process.env.ASIDE_MOBILE_TOKEN;
-  if (!token && process.env.ALLOW_INSECURE_LOCAL !== "1") throw new Error("Set ASIDE_MOBILE_TOKEN before starting, or use ALLOW_INSECURE_LOCAL=1 for local-only testing");
-  const app = createApp({ token });
+  const trustTailscaleIdentity = process.env.TRUST_TAILSCALE_IDENTITY === "1";
+  if (!token && !trustTailscaleIdentity && process.env.ALLOW_INSECURE_LOCAL !== "1") throw new Error("Set ASIDE_MOBILE_TOKEN or TRUST_TAILSCALE_IDENTITY=1 before starting");
+  const app = createApp({ token, trustTailscaleIdentity });
   Bun.serve({ hostname, port, idleTimeout: 30, fetch: app });
   console.log(`aside-mobile listening on http://${hostname}:${port}`);
 }

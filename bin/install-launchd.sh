@@ -18,7 +18,7 @@ cat > "$PLIST" <<EOF
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.aside-mobile.pwa</string>
-  <key>EnvironmentVariables</key><dict><key>PORT</key><string>8787</string></dict>
+  <key>EnvironmentVariables</key><dict><key>TRUST_TAILSCALE_IDENTITY</key><string>1</string></dict>
   <key>ProgramArguments</key><array><string>$ROOT_DIR/bin/aside-mobile-start.sh</string></array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>

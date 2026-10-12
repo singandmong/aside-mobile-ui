@@ -58,3 +58,8 @@ test("returns an on-demand DOM projection", async () => {
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ title: "Results", text: "answer" });
 });
+test("accepts Tailscale Serve identity when explicitly enabled", async () => {
+  const app = createApp({ trustTailscaleIdentity: true, bridge: bridgeStub() });
+  const response = await app(new Request("http://localhost/api/hosts", { headers: { "Tailscale-User-Login": "owner@example.com" } }));
+  expect(response.status).toBe(200);
+});
