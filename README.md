@@ -45,8 +45,8 @@ phone ──HTTPS──▶ hub (aside-mobile, relay on) ◀──WebSocket──
 The connector keeps running at login and reconnects automatically. Revoke it from the same sheet on the phone.
 
 Why a connector instead of Aside's built-in remote control: Aside remote control round-trips through Aside's cloud (≈18 s per call in testing), while a connector talks to the local Aside daemon (≈0.2 s).
+
 **Different tailnets.** Connectors only make outbound connections, so they only need to reach the hub. The simplest option is to [share the hub machine](https://tailscale.com/kb/1084/sharing) into the other tailnet. Do not publish the hub with `tailscale funnel`.
-**Different tailnets.** Connectors only make outbound connections, so they need to reach the hub, nothing else. Either [share the hub machine](https://tailscale.com/kb/1084/sharing) into the other tailnet, or run the hub behind any authenticated HTTPS endpoint you control. Never expose the hub with `tailscale funnel` without `TRUST_TAILSCALE_IDENTITY` disabled and a strong `ASIDE_MOBILE_TOKEN`.
 
 ## Authentication
 
