@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseDomProjection, parseHostList, parseResult, validateBrowserAction } from "../src/aside-bridge";
+import { isLocalHost, parseCreatedSession, parseDomProjection, parseHostList, parseResult, parseSessionList, validateBrowserAction } from "../src/aside-bridge";
 
 describe("Aside bridge input boundaries", () => {
   test("keeps only safe host fields", () => {
@@ -35,4 +35,31 @@ describe("DOM projection", () => {
     });
     expect("html" in projection).toBe(false);
   });
+});
+
+describe("CLI session parsing", () => {
+  test("parses session list rows newest first, keeping multi-word titles", () => {
+    const stdout = [
+      "aaaaaaaaaaaaaaaa  idle  persistent  Weekly  report   draft  2026-10-01T01:00:00.000Z",
+      "bbbbbbbbbbbbbbbb  running  ephemeral  Mobile task  2026-10-12T06:00:00.000Z",
+      "not a session row",
+    ].join("\n");
+    expect(parseSessionList(stdout)).toEqual([
+      { id: "bbbbbbbbbbbbbbbb", status: "running", kind: "ephemeral", title: "Mobile task", updatedAt: "2026-10-12T06:00:00.000Z" },
+      { id: "aaaaaaaaaaaaaaaa", status: "idle", kind: "persistent", title: "Weekly report draft", updatedAt: "2026-10-01T01:00:00.000Z" },
+    ]);
+  });
+
+  test("extracts the created session id from exec output with ANSI codes", () => {
+    expect(parseCreatedSession("\u001b[2mcreated new session: o9bWehZwiNcAf8ru\u001b[0m\n")).toBe("o9bWehZwiNcAf8ru");
+    expect(parseCreatedSession("nothing here")).toBeNull();
+  });
+});
+
+test("detects the Aside host that is this machine", () => {
+  const host = { id: "h1", deviceName: "Studio-Mac.local", platform: "macos", online: true, remoteControlEnabled: true };
+  expect(isLocalHost(host, "studio-mac.local")).toBe(true);
+  expect(isLocalHost(host, "Studio-Mac")).toBe(true);
+  expect(isLocalHost(host, "other-mac.local")).toBe(false);
+  expect(isLocalHost(host, "x", "h1")).toBe(true);
 });

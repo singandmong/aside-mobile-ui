@@ -2,20 +2,70 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#10141c">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#0e1116">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="stylesheet" href="/styles.css?v=5">
+  <title>Aside Mobile</title>
 </head>
 <body>
-  <main>
-    <header><div><p class="eyebrow">PRIVATE TAILNET</p><h1>Aside Mobile</h1></div><button id="refresh">새로고침</button></header>
-    <p id="status" class="status">연결 중…</p>
-    <section id="auth-panel" class="panel"><h2>접속 토큰</h2><form id="auth-form"><input id="token" type="password" autocomplete="off" placeholder="ASIDE_MOBILE_TOKEN"><button>접속</button></form></section>
-    <section class="panel"><h2>Aside 작업</h2><form id="prompt-form"><input id="prompt" autocomplete="off" placeholder="새 작업 또는 선택한 작업의 후속 질문"><button>보내기</button><button id="close-session" type="button">닫기</button><button id="stop" type="button">중지</button></form><div id="sessions" class="list"></div><div id="messages" class="messages">작업을 선택하세요</div></section>
-    <section class="panel"><h2>컴퓨터</h2><div id="hosts" class="cards"></div></section>
-    <section class="panel"><h2>브라우저 탭</h2><div id="tabs" class="tabs"></div><button id="show-dom" type="button" disabled>선택한 탭 내용 보기</button><div id="dom-view" class="dom-view empty">필요할 때만 탭 내용을 불러옵니다</div><details><summary>스크린샷 보기</summary><button id="capture" type="button" disabled>스크린샷 요청</button><div id="frame" class="frame empty">요청할 때만 화면을 가져옵니다</div></details><div class="controls"><button data-action="scroll" data-dy="-600">↑</button><button data-action="scroll" data-dy="600">↓</button><button data-action="key" data-key="Escape">Esc</button><button data-action="key" data-key="Enter">Enter</button></div><form id="type-form"><input id="text" autocomplete="off" placeholder="선택한 페이지에 입력"><button>입력</button></form></section>
-  </main>
-  <script src="/app.js?v=4" type="module"></script>
+  <header class="topbar">
+    <button id="back" class="icon-btn" type="button" aria-label="뒤로" hidden>‹</button>
+    <div class="titles">
+      <h1 id="title">Aside</h1>
+      <p id="subtitle" class="subtitle">실행 환경 선택</p>
+    </div>
+    <button id="tools-btn" class="icon-btn" type="button" aria-label="브라우저 도구" hidden>⌘</button>
+    <button id="refresh" class="icon-btn" type="button" aria-label="새로고침">↻</button>
+  </header>
+
+  <div id="banner" class="banner" role="status" hidden></div>
+
+  <main id="view"></main>
+
+  <form id="composer" class="composer" hidden>
+    <textarea id="prompt" rows="1" placeholder="Aside에게 요청하기" autocomplete="off" enterkeyhint="send"></textarea>
+    <button id="send" class="send-btn" type="submit" aria-label="보내기">↑</button>
+  </form>
+
+  <dialog id="auth" class="sheet">
+    <form method="dialog" id="auth-form">
+      <h2>접속 인증</h2>
+      <p class="muted">Tailscale 인증이 없거나 허용되지 않은 사용자입니다. 서버의 <code>ASIDE_MOBILE_TOKEN</code>을 입력하세요. 토큰은 이 기기에만 저장됩니다.</p>
+      <input id="token" type="password" autocomplete="off" placeholder="토큰">
+      <div class="row"><button class="primary" value="ok">접속</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="tools" class="sheet">
+    <div class="sheet-head"><h2>브라우저 도구</h2><button class="icon-btn" type="button" data-close aria-label="닫기">✕</button></div>
+    <p class="muted">선택한 실행 환경의 Aside 브라우저 탭입니다. 필요할 때만 불러옵니다.</p>
+    <div id="tab-list" class="list"></div>
+    <div id="tab-panel" hidden>
+      <div class="row wrap">
+        <button type="button" data-tool="dom">내용 보기</button>
+        <button type="button" data-tool="shot">스크린샷</button>
+        <button type="button" data-key="Escape">Esc</button>
+        <button type="button" data-key="Enter">Enter</button>
+        <button type="button" data-scroll="-600">위로</button>
+        <button type="button" data-scroll="600">아래로</button>
+      </div>
+      <form id="type-form" class="row"><input id="type-text" autocomplete="off" placeholder="선택한 페이지에 입력"><button>입력</button></form>
+      <div id="tool-output" class="tool-output"></div>
+    </div>
+  </dialog>
+
+  <dialog id="pair" class="sheet">
+    <div class="sheet-head"><h2>다른 컴퓨터 연결</h2><button class="icon-btn" type="button" data-close aria-label="닫기">✕</button></div>
+    <div id="pair-body"></div>
+    <p class="section-title">연결된 컴퓨터</p>
+    <div id="connector-list" class="list"></div>
+  </dialog>
+
+  <script src="/app.js?v=5" type="module"></script>
 </body>
 </html>

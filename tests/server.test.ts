@@ -1,15 +1,16 @@
-import { describe, expect, test } from "bun:test";
-import type { AsideBridgeLike } from "../src/server";
-import { createApp } from "../src/server";
+import { expect, test } from "bun:test";
+import { createApp, type EnvironmentBackend } from "../src/server";
 
-function bridgeStub(overrides: Partial<AsideBridgeLike> = {}): AsideBridgeLike {
+const MAC = { id: "h1", label: "Mac mini", platform: "macos", online: true, connection: "direct" as const, capabilities: { sessions: true, prompts: true, stop: true, browserTabs: true, domProjection: true, screenshot: true, browserActions: true } };
+
+function backendStub(overrides: Partial<EnvironmentBackend> = {}): EnvironmentBackend {
   return {
-    hosts: async () => [],
+    environments: async () => [MAC],
     tabs: async () => [],
     sessions: async () => [],
     messages: async () => [],
     screenshot: async () => ({ mime: "image/png", data: "x" }),
-    dom: async () => ({ title: "Test", url: "https://example.com", text: "Test", blocks: [], links: [], inputs: [] }),
+    dom: async () => ({ title: "T", url: "https://example.com", text: "", blocks: [], links: [], inputs: [] }),
     action: async () => ({ ok: true }),
     exec: async () => ({ ok: true }),
     resume: async () => ({ ok: true }),
@@ -18,48 +19,60 @@ function bridgeStub(overrides: Partial<AsideBridgeLike> = {}): AsideBridgeLike {
   };
 }
 
-test("health and host routes expose the bridge contract", async () => {
-  const app = createApp({
-    token: "secret",
-    bridge: bridgeStub({
-      hosts: async () => [{ id: "h1", deviceName: "Mac", platform: "macos", online: true, remoteControlEnabled: true }],
-    }),
-  });
-  expect((await app(new Request("http://localhost/api/health"))).status).toBe(200);
-  expect((await app(new Request("http://localhost/api/hosts"))).status).toBe(401);
-  const response = await app(new Request("http://localhost/api/hosts", { headers: { authorization: "Bearer secret" } }));
+const get = (path: string, headers: Record<string, string> = {}) => new Request(`http://localhost${path}`, { headers });
+const post = (path: string, body?: unknown) => new Request(`http://localhost${path}`, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+
+test("bearer token gates environment listing", async () => {
+  const app = createApp({ token: "secret", trustTailscaleIdentity: false, trustedUsers: [], backend: backendStub() });
+  expect((await app(get("/api/health"))).status).toBe(200);
+  expect((await app(get("/api/environments"))).status).toBe(401);
+  const response = await app(get("/api/environments", { authorization: "Bearer secret" }));
   expect(response.status).toBe(200);
-  expect(await response.json()).toHaveLength(1);
+  expect(await response.json()).toEqual([MAC]);
 });
 
-test("rejects invalid browser action before bridge invocation", async () => {
+test("Tailscale identity is accepted only when enabled and allowed", async () => {
+  const open = createApp({ token: "", trustTailscaleIdentity: true, trustedUsers: [], backend: backendStub() });
+  expect((await open(get("/api/environments", { "Tailscale-User-Login": "anyone@example.com" }))).status).toBe(200);
+  expect((await open(get("/api/environments"))).status).toBe(401);
+
+  const allow = createApp({ token: "", trustTailscaleIdentity: true, trustedUsers: ["owner@example.com"], backend: backendStub() });
+  expect((await allow(get("/api/environments", { "Tailscale-User-Login": "Owner@Example.com" }))).status).toBe(200);
+  expect((await allow(get("/api/environments", { "Tailscale-User-Login": "guest@example.com" }))).status).toBe(401);
+
+  const disabled = createApp({ token: "t", trustTailscaleIdentity: false, trustedUsers: [], backend: backendStub() });
+  expect((await disabled(get("/api/environments", { "Tailscale-User-Login": "owner@example.com" }))).status).toBe(401);
+});
+
+test("routes session operations to the selected environment", async () => {
+  const calls: string[] = [];
+  const app = createApp({ token: "", trustTailscaleIdentity: false, trustedUsers: [], backend: backendStub({
+    exec: async (env, prompt) => { calls.push(`exec:${env}:${prompt}`); return { ok: true }; },
+    resume: async (env, session, prompt) => { calls.push(`resume:${env}:${session}:${prompt}`); return { ok: true }; },
+    stop: async (env, session) => { calls.push(`stop:${env}:${session}`); return { ok: true }; },
+    messages: async (env, session) => { calls.push(`messages:${env}:${session}`); return []; },
+  }) });
+  expect((await app(post("/api/environments/h1/exec", { prompt: "hello" }))).status).toBe(200);
+  expect((await app(post("/api/environments/h1/sessions/s1/resume", { prompt: "again" }))).status).toBe(200);
+  expect((await app(post("/api/environments/h1/sessions/s1/stop"))).status).toBe(200);
+  expect((await app(get("/api/environments/c%3Ah2/sessions/s2/messages"))).status).toBe(200);
+  expect(calls).toEqual(["exec:h1:hello", "resume:h1:s1:again", "stop:h1:s1", "messages:c:h2:s2"]);
+});
+
+test("rejects invalid input before reaching the backend", async () => {
   let called = false;
-  const app = createApp({ token: "", bridge: bridgeStub({ action: async () => { called = true; return { ok: true }; } }) });
-  const response = await app(new Request("http://localhost/api/hosts/h/tabs/t/action", { method: "POST", body: JSON.stringify({ action: "click", x: -1, y: 2 }), headers: { "content-type": "application/json" } }));
-  expect(response.status).toBe(400);
+  const app = createApp({ token: "", trustTailscaleIdentity: false, trustedUsers: [], backend: backendStub({
+    action: async () => { called = true; return { ok: true }; },
+    exec: async () => { called = true; return { ok: true }; },
+  }) });
+  expect((await app(post("/api/environments/h1/tabs/t/action", { action: "click", x: -1, y: 2 }))).status).toBe(400);
+  expect((await app(post("/api/environments/h1/exec", { prompt: "" }))).status).toBe(400);
   expect(called).toBe(false);
 });
 
-test("starts and controls an Aside session", async () => {
-  const calls: string[] = [];
-  const app = createApp({ token: "", bridge: bridgeStub({
-    exec: async (_hostId, prompt) => { calls.push(`exec:${prompt}`); return { ok: true }; },
-    resume: async (_hostId, sessionId, prompt) => { calls.push(`resume:${sessionId}:${prompt}`); return { ok: true }; },
-    stop: async (_hostId, sessionId) => { calls.push(`stop:${sessionId}`); return { ok: true }; },
-  }) });
-  expect((await app(new Request("http://localhost/api/hosts/h/exec", { method: "POST", body: JSON.stringify({ prompt: "hello" }) }))).status).toBe(200);
-  expect((await app(new Request("http://localhost/api/hosts/h/sessions/s1/resume", { method: "POST", body: JSON.stringify({ prompt: "again" }) }))).status).toBe(200);
-  expect((await app(new Request("http://localhost/api/hosts/h/sessions/s1/stop", { method: "POST" }))).status).toBe(200);
-  expect(calls).toEqual(["exec:hello", "resume:s1:again", "stop:s1"]);
-});
-test("returns an on-demand DOM projection", async () => {
-  const app = createApp({ bridge: bridgeStub({ dom: async () => ({ title: "Results", url: "https://example.com", text: "answer", blocks: [], links: [], inputs: [] }) }) });
-  const response = await app(new Request("http://localhost/api/hosts/h/tabs/t/dom"));
-  expect(response.status).toBe(200);
-  expect(await response.json()).toMatchObject({ title: "Results", text: "answer" });
-});
-test("accepts Tailscale Serve identity when explicitly enabled", async () => {
-  const app = createApp({ trustTailscaleIdentity: true, bridge: bridgeStub() });
-  const response = await app(new Request("http://localhost/api/hosts", { headers: { "Tailscale-User-Login": "owner@example.com" } }));
-  expect(response.status).toBe(200);
+test("maps offline environments to 503", async () => {
+  const app = createApp({ token: "", trustTailscaleIdentity: false, trustedUsers: [], backend: backendStub({ sessions: async () => { throw new Error("environment_offline"); } }) });
+  const response = await app(get("/api/environments/h1/sessions"));
+  expect(response.status).toBe(503);
+  expect(await response.json()).toEqual({ error: "environment_offline" });
 });

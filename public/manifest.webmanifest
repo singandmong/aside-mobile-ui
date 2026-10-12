@@ -1,1 +1,1 @@
-{"name":"Aside Mobile","short_name":"Aside","start_url":"/","display":"standalone","background_color":"#0d1117","theme_color":"#10141c","lang":"ko","icons":[]}
+{"name":"Aside Mobile","short_name":"Aside","start_url":"/","scope":"/","display":"standalone","background_color":"#0e1116","theme_color":"#0e1116","lang":"ko","icons":[{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}]}

@@ -1,13 +1,15 @@
-const SHELL = ["/", "/app.js?v=4", "/styles.css", "/manifest.webmanifest"];
-const CACHE = "aside-mobile-shell-v4";
+// Network-first app shell: always prefer the live server so UI updates are never stuck behind a cache.
+// API responses, messages, and screenshots are never cached.
+const CACHE = "aside-mobile-shell-v5";
+const SHELL = ["/", "/app.js?v=5", "/styles.css?v=5", "/manifest.webmanifest", "/icon.svg"];
+
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (event) => event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (url.pathname.startsWith("/api/")) return;
-  if (url.pathname === "/") {
-    event.respondWith(fetch(event.request).then((response) => { const copy = response.clone(); caches.open(CACHE).then((cache) => cache.put("/", copy)); return response; }).catch(() => caches.match("/")));
-    return;
-  }
-  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
+  if (event.request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
+  event.respondWith(fetch(event.request).then((response) => {
+    if (response.ok) { const copy = response.clone(); caches.open(CACHE).then((cache) => cache.put(event.request, copy)); }
+    return response;
+  }).catch(() => caches.match(event.request)));
 });
