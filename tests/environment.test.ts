@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { toEnvironment, normalizeMessages } from "../src/environment";
 
 test("online remote-control host exposes every capability", () => {
-  const env = toEnvironment({ id: "h1", deviceName: "Mac mini", platform: "macos", online: true, remoteControlEnabled: true }, "local");
-  expect(env).toMatchObject({ id: "h1", label: "Mac mini", platform: "macos", online: true, connection: "local" });
+  const env = toEnvironment({ id: "h1", deviceName: "Studio.local", platform: "macos", online: true, remoteControlEnabled: true }, "local");
+  expect(env).toMatchObject({ id: "h1", label: "Studio", platform: "macos", online: true, connection: "local" });
   expect(Object.values(env.capabilities).every(Boolean)).toBe(true);
 });
 

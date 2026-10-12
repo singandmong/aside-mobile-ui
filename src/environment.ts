@@ -28,7 +28,7 @@ export function toEnvironment(host: Host, connection: Connection): EnvironmentSu
   const usable = host.online && host.remoteControlEnabled;
   return {
     id: host.id,
-    label: host.deviceName,
+    label: host.deviceName.replace(/\.local$/i, ""),
     platform: host.platform,
     online: host.online,
     connection,

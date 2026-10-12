@@ -128,6 +128,11 @@ async function render() {
   }
 }
 
+/** replaceChildren() stringifies null ("null"); drop absent optional nodes instead. */
+function fill(node, ...children) {
+  node.replaceChildren(...children.flat().filter((child) => child !== null && child !== undefined && child !== false));
+}
+
 function showError(error) {
   view.replaceChildren(el("div", { class: "empty" }, el("p", {}, error.message), el("button", { type: "button", onclick: render }, "다시 시도")));
 }
@@ -143,12 +148,12 @@ async function renderEnvironments() {
   const last = localStorage.getItem("asideMobileLastEnv");
   const connect = state.relay ? el("button", { type: "button", class: "new-task", onclick: openPairing }, "＋ 다른 컴퓨터 연결") : null;
   if (environments.length === 0) {
-    view.replaceChildren(el("div", { class: "empty" }, el("p", {}, "연결된 실행 환경이 없습니다."), el("p", { class: "muted" }, "Mac에서 Aside를 실행하고 설정 › 개발자 › 원격 제어를 켜세요.")), connect);
+    fill(view, el("div", { class: "empty" }, el("p", {}, "연결된 실행 환경이 없습니다."), el("p", { class: "muted" }, "Mac에서 Aside를 실행하고 설정 › 개발자 › 원격 제어를 켜세요.")), connect);
     return;
   }
   const rank = { local: 0, relay: 1, "aside-remote": 2 };
   const sorted = [...environments].sort((a, b) => Number(b.online) - Number(a.online) || rank[a.connection] - rank[b.connection] || Number(b.id === last) - Number(a.id === last));
-  view.replaceChildren(
+  fill(view,
     el("p", { class: "section-title" }, "Aside를 실행할 컴퓨터"),
     el("div", { class: "list" }, sorted.map((env) => el("button", {
       type: "button",
@@ -206,7 +211,7 @@ async function drawConnectors() {
   try {
     const connectors = await api("/api/connectors");
     list.replaceChildren(...(connectors.length ? connectors.map((connector) => el("div", { class: "card" },
-      el("span", { class: "body" }, el("div", { class: "name" }, connector.label), el("div", { class: "meta" }, el("span", { class: `dot${connector.online ? " on" : ""}` }), connector.online ? "온라인" : "오프라인", timeAgo(connector.createdAt))),
+      el("span", { class: "body" }, el("div", { class: "name" }, connector.label), el("div", { class: "meta" }, el("span", { class: `dot${connector.online ? " on" : ""}` }), el("span", {}, connector.online ? "온라인" : "오프라인"), el("span", {}, `${timeAgo(connector.createdAt)} 연결`))),
       el("button", { type: "button", class: "danger", onclick: async () => {
         if (!confirm(`${connector.label} 연결을 해제할까요? 다시 쓰려면 새로 연결해야 합니다.`)) return;
         await api(`/api/connectors/${encodeURIComponent(connector.id)}`, { method: "DELETE" }).catch((error) => banner(error.message, "bad"));
@@ -283,7 +288,7 @@ function drawChat() {
     el("span", { class: "state" }, { sending: "보내는 중…", sent: "전송됨 · Aside 처리 대기", failed: "전송 실패" }[item.state])));
   const emptyText = !state.messagesLoaded ? "메시지를 불러오는 중…" : "표시할 대화가 없습니다";
   const empty = state.session && state.messages.length === 0 && pending.length === 0 ? el("p", { class: "empty" }, emptyText) : null;
-  view.replaceChildren(bar, el("div", { class: "chat" }, bubbles, pendingBubbles), empty);
+  fill(view, bar, el("div", { class: "chat" }, bubbles, pendingBubbles), empty);
   if (atBottom || pending.length) view.scrollTop = view.scrollHeight;
 }
 
@@ -375,7 +380,7 @@ async function showDom() {
   $("tool-output").replaceChildren(el("p", { class: "muted" }, "내용을 불러오는 중…"));
   try {
     const dom = await api(envPath(`/tabs/${encodeURIComponent(state.tab.targetId)}/dom`));
-    $("tool-output").replaceChildren(
+    fill($("tool-output"),
       el("h3", {}, dom.title || "제목 없음"),
       el("p", { class: "muted" }, dom.url),
       el("pre", {}, dom.text || "(본문 없음)"),
@@ -427,4 +432,4 @@ $("refresh").onclick = () => { state.environments = null; render(); };
 window.addEventListener("hashchange", render);
 document.addEventListener("visibilitychange", () => { if (!document.hidden && route().envId) render(); });
 render();
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=5").catch(() => {});
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=6").catch(() => {});

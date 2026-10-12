@@ -1,7 +1,7 @@
 // Network-first app shell: always prefer the live server so UI updates are never stuck behind a cache.
 // API responses, messages, and screenshots are never cached.
-const CACHE = "aside-mobile-shell-v5";
-const SHELL = ["/", "/app.js?v=5", "/styles.css?v=5", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "aside-mobile-shell-v6";
+const SHELL = ["/", "/app.js?v=6", "/styles.css?v=6", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (event) => event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim())));
